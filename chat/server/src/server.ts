@@ -10,14 +10,24 @@ app.get("/", (_req, res) => {
 
 interface ConnectedToRoom {
   roomName: string;
+  userName: string;
+}
+
+interface MessageAdded {
+  userName: string;
+  roomName: string;
+  message: string;
 }
 
 interface ClientToServerEvents {
   connectedToRoom: (data: ConnectedToRoom) => void;
   disconnectRoom: (data: ConnectedToRoom) => void;
+  addMessage: (data: MessageAdded) => void;
 }
 interface ServerToClientEvents {
   usersInRoomChanged: (data: number) => void;
+  userJoinedOurRoom: (name: string, allUsers: User[]) => void;
+  newMessageAdded: (data: MessageAdded) => void;
 }
 interface InterServerEvents {}
 interface SocketData {}
@@ -34,17 +44,42 @@ const io = new Server<
   },
 });
 
+interface User {
+  name: string;
+}
+
+const users: Record<string, User> = {};
+
 const reportUsersInOneRoom = (roomName: string) => {
   const clientsInRoom = io.sockets.adapter.rooms.get(roomName);
   io.in(roomName).emit("usersInRoomChanged", clientsInRoom?.size ?? 0);
+};
+
+const reportNewUserJoined = (roomName: string, userName: string) => {
+  const clientsInRoom = io.sockets.adapter.rooms.get(roomName);
+  const allUsers = Array.from(clientsInRoom!.values()).map(
+    (key): User => users[key]
+  );
+
+  console.log(allUsers);
+  io.in(roomName).emit("userJoinedOurRoom", userName, allUsers);
+};
+
+const reportNewMessageAdded = (messageAdded: MessageAdded) => {
+  io.in(messageAdded.roomName).emit("newMessageAdded", messageAdded);
 };
 
 io.on("connection", (socket) => {
   socket.on("connectedToRoom", (data) => {
     const room = data.roomName;
     socket.join(room);
-
     reportUsersInOneRoom(room);
+    users[socket.id] = { name: data.userName };
+    reportNewUserJoined(room, data.userName);
+  });
+
+  socket.on("addMessage", (data) => {
+    reportNewMessageAdded(data);
   });
 
   socket.on("disconnect", () => {
@@ -54,6 +89,7 @@ io.on("connection", (socket) => {
     for (let key of allRooms.keys()) {
       if (key.indexOf("test") > -1) {
         reportUsersInOneRoom(key);
+        reportNewUserJoined(key, "");
       }
     }
   });

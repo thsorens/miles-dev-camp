@@ -9,25 +9,23 @@ const url = "http://localhost:4004";
 
 function App() {
   const [count, setCount] = useState(0);
-  const eventId = "test";
+  const roomName = "test";
   useEffect(() => {
     const ioConn: Socket = io(url);
 
-    if (eventId) {
-      ioConn.on("connect", () => {
-        ioConn.emit("connectedToRoom", {
-          roomName: eventId,
-        });
+    ioConn.on("connect", () => {
+      ioConn.emit("connectedToRoom", {
+        roomName: roomName,
       });
+    });
 
-      ioConn.on("usersInRoomChanged", (amountOfUsers) => {
-        console.log("users on room changed");
-        setCount(amountOfUsers);
-      });
-    }
+    ioConn.on("usersInRoomChanged", (amountOfUsers) => {
+      console.log("users on room changed");
+      setCount(amountOfUsers);
+    });
 
     return () => {
-      ioConn.emit("disconnectRoom", { roomName: eventId });
+      ioConn.emit("disconnectRoom", { roomName: roomName });
       ioConn.close();
     };
   }, []);
